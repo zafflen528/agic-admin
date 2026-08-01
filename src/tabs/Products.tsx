@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { move } from '../lib/move'
 import type { Media, Product, Spec } from '../lib/supabase'
 import { supabase } from '../lib/supabase'
 import { PageHeader, bare, button, card, dangerLink, input } from '../ui'
@@ -23,6 +24,29 @@ export default function Products({
   onChange: (next: Product[]) => void
 }) {
   const [newName, setNewName] = useState('')
+  // `armed` is the card the grab handle has enabled dragging on; `dragId` is the
+  // card currently in flight. Both are ids so a re-render can't stale them.
+  const [armed, setArmed] = useState<string | null>(null)
+  const [dragId, setDragId] = useState<string | null>(null)
+
+  /** Live-reorder as the dragged card passes over another one. */
+  function dragOver(overId: string) {
+    if (!dragId || dragId === overId) return
+    const from = products.findIndex(p => p.id === dragId)
+    const to = products.findIndex(p => p.id === overId)
+    if (from < 0 || to < 0) return
+    onChange(move(products, from, to))
+  }
+
+  async function dropOrder() {
+    setArmed(null)
+    setDragId(null)
+    const rows = products.map((p, i) => ({ ...p, position: i + 1 }))
+    if (rows.every((r, i) => r.position === products[i].position)) return
+    onChange(rows)
+    const { error } = await supabase.from('products').upsert(rows)
+    if (error) alert(`Could not save order: ${error.message}`)
+  }
 
   /** Update one product in local state without touching the database. */
   const patch = (id: string, fields: Partial<Product>) =>
@@ -93,11 +117,22 @@ export default function Products({
     <div>
       <PageHeader
         title="Products"
-        subtitle="Coal specification sheets shown on the landing page"
+        subtitle="Coal specification sheets shown on the landing page — drag ⠿ to reorder"
       />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         {products.map(p => (
-          <div key={p.id} style={card}>
+          <div
+            key={p.id}
+            draggable={armed === p.id}
+            onDragStart={() => setDragId(p.id)}
+            onDragOver={e => {
+              e.preventDefault()
+              dragOver(p.id)
+            }}
+            onDrop={dropOrder}
+            onDragEnd={dropOrder}
+            style={{ ...card, opacity: dragId === p.id ? 0.5 : 1 }}
+          >
             <div
               style={{
                 display: 'flex',
@@ -107,6 +142,21 @@ export default function Products({
                 gap: 12,
               }}
             >
+              <div
+                onMouseDown={() => setArmed(p.id)}
+                onMouseUp={() => setArmed(null)}
+                title="Drag to reorder"
+                style={{
+                  cursor: 'grab',
+                  color: 'oklch(65% 0.02 260)',
+                  fontSize: 16,
+                  lineHeight: 1,
+                  padding: '0 2px',
+                  userSelect: 'none',
+                }}
+              >
+                ⠿
+              </div>
               <input
                 value={p.name}
                 onChange={e => patch(p.id, { name: e.target.value })}

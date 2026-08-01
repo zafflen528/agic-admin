@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import type { Inquiry, Partner, Product } from './lib/supabase'
 import { supabase } from './lib/supabase'
+import Login from './Login'
 import Dashboard from './tabs/Dashboard'
 import Inquiries from './tabs/Inquiries'
 import Partners from './tabs/Partners'
@@ -12,12 +14,24 @@ type Tab = (typeof TABS)[number]
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('Dashboard')
+  const [session, setSession] = useState<Session | null>(null)
+  const [authReady, setAuthReady] = useState(false)
   const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [partners, setPartners] = useState<Partner[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setAuthReady(true)
+    })
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next))
+    return () => data.subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (!session) return
     Promise.all([
       supabase.from('inquiries').select('*').order('created_at', { ascending: false }),
       supabase.from('products').select('*').order('position'),
@@ -29,7 +43,10 @@ export default function App() {
       setProducts(pr.data ?? [])
       setPartners(pa.data ?? [])
     })
-  }, [])
+  }, [session])
+
+  if (!authReady) return null
+  if (!session) return <Login />
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -75,7 +92,13 @@ export default function App() {
         >
           Signed in as
           <br />
-          <strong style={{ color: '#fff' }}>A. Ramadhan</strong> · Admin
+          <strong style={{ color: '#fff' }}>{session.user.email}</strong>
+          <div
+            onClick={() => supabase.auth.signOut()}
+            style={{ marginTop: 8, cursor: 'pointer', color: 'oklch(78% 0.06 75)' }}
+          >
+            Sign out
+          </div>
         </div>
       </div>
 
