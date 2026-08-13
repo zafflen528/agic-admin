@@ -1,5 +1,6 @@
 import type { Inquiry } from '../lib/supabase'
 import { supabase } from '../lib/supabase'
+import { toast } from '../toast'
 import { PageHeader, bodyRow, card, fmtDate, muted, td, th, theadRow } from '../ui'
 
 const STATUSES: Inquiry['status'][] = ['New', 'Contacted', 'Quoted', 'Closed']
@@ -11,10 +12,15 @@ export default function Inquiries({
   inquiries: Inquiry[]
   onChange: (next: Inquiry[]) => void
 }) {
-  async function setStatus(id: string, status: Inquiry['status']) {
-    onChange(inquiries.map(q => (q.id === id ? { ...q, status } : q)))
-    const { error } = await supabase.from('inquiries').update({ status }).eq('id', id)
-    if (error) alert(`Could not update status: ${error.message}`)
+  async function setStatus(q: Inquiry, status: Inquiry['status']) {
+    const previous = q.status
+    onChange(inquiries.map(x => (x.id === q.id ? { ...x, status } : x)))
+    const { error } = await supabase.from('inquiries').update({ status }).eq('id', q.id)
+    if (error) {
+      onChange(inquiries.map(x => (x.id === q.id ? { ...x, status: previous } : x)))
+      return toast(`Could not update status: ${error.message}`, 'error')
+    }
+    toast(`${q.name} marked ${status}`)
   }
 
   return (
@@ -46,7 +52,7 @@ export default function Inquiries({
                   <td style={{ padding: '12px 16px' }}>
                     <select
                       value={q.status}
-                      onChange={e => setStatus(q.id, e.target.value as Inquiry['status'])}
+                      onChange={e => setStatus(q, e.target.value as Inquiry['status'])}
                       style={{
                         padding: '6px 10px',
                         borderRadius: 5,

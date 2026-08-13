@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { move } from '../lib/move'
 import type { Media, Product, Spec } from '../lib/supabase'
 import { supabase } from '../lib/supabase'
+import { confirmDialog, toast } from '../toast'
 import { PageHeader, bare, button, card, dangerLink, input } from '../ui'
 
 const BUCKET = 'product-media'
@@ -45,7 +46,8 @@ export default function Products({
     if (rows.every((r, i) => r.position === products[i].position)) return
     onChange(rows)
     const { error } = await supabase.from('products').upsert(rows)
-    if (error) alert(`Could not save order: ${error.message}`)
+    if (error) return toast(`Could not save order: ${error.message}`, 'error')
+    toast('Order saved')
   }
 
   /** Update one product in local state without touching the database. */
@@ -55,7 +57,7 @@ export default function Products({
   /** Persist the given fields; local state is assumed already updated. */
   async function save(id: string, fields: Partial<Product>) {
     const { error } = await supabase.from('products').update(fields).eq('id', id)
-    if (error) alert(`Could not save product: ${error.message}`)
+    if (error) toast(`Could not save product: ${error.message}`, 'error')
   }
 
   const patchSpecs = (p: Product, specs: Spec[], persist: boolean) => {
@@ -71,17 +73,20 @@ export default function Products({
       .insert({ name, specs: BLANK_SPECS, media: [], position: products.length + 1 })
       .select()
       .single()
-    if (error) return alert(`Could not add product: ${error.message}`)
+    if (error) return toast(`Could not add product: ${error.message}`, 'error')
     onChange([...products, data])
     setNewName('')
+    toast(`${data.name} added`)
   }
 
   async function removeProduct(p: Product) {
-    if (!confirm(`Delete "${p.name}" and its media?`)) return
+    const media = p.media.length ? ` and its ${p.media.length} media file(s)` : ''
+    if (!(await confirmDialog(`Delete “${p.name}”${media}? This cannot be undone.`))) return
     const { error } = await supabase.from('products').delete().eq('id', p.id)
-    if (error) return alert(`Could not delete product: ${error.message}`)
+    if (error) return toast(`Could not delete product: ${error.message}`, 'error')
     if (p.media.length) await supabase.storage.from(BUCKET).remove(p.media.map(m => m.path))
     onChange(products.filter(x => x.id !== p.id))
+    toast(`${p.name} deleted`)
   }
 
   async function uploadMedia(p: Product, files: FileList) {
@@ -90,7 +95,7 @@ export default function Products({
       const path = `${p.id}/${crypto.randomUUID()}-${file.name}`
       const { error } = await supabase.storage.from(BUCKET).upload(path, file)
       if (error) {
-        alert(`Upload failed for ${file.name}: ${error.message}`)
+        toast(`Upload failed for ${file.name}: ${error.message}`, 'error')
         continue
       }
       const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
@@ -103,10 +108,12 @@ export default function Products({
     if (!uploaded.length) return
     const media = [...p.media, ...uploaded]
     patch(p.id, { media })
-    save(p.id, { media })
+    await save(p.id, { media })
+    toast(`${uploaded.length} file(s) uploaded to ${p.name}`)
   }
 
   async function removeMedia(p: Product, target: Media) {
+    if (!(await confirmDialog('Delete this media file?'))) return
     const media = p.media.filter(m => m.path !== target.path)
     patch(p.id, { media })
     await supabase.storage.from(BUCKET).remove([target.path])

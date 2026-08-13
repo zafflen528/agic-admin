@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Partner } from '../lib/supabase'
 import { supabase } from '../lib/supabase'
+import { confirmDialog, toast } from '../toast'
 import { PageHeader, button, card, dangerLink, input } from '../ui'
 
 export default function Partners({
@@ -20,15 +21,18 @@ export default function Partners({
       .insert({ name: trimmed })
       .select()
       .single()
-    if (error) return alert(`Could not add partner: ${error.message}`)
+    if (error) return toast(`Could not add partner: ${error.message}`, 'error')
     onChange([...partners, data])
     setName('')
+    toast(`${data.name} added`)
   }
 
-  async function remove(id: string) {
-    const { error } = await supabase.from('partners').delete().eq('id', id)
-    if (error) return alert(`Could not remove partner: ${error.message}`)
-    onChange(partners.filter(p => p.id !== id))
+  async function remove(p: Partner) {
+    if (!(await confirmDialog(`Remove “${p.name}” from the landing page?`, 'Remove'))) return
+    const { error } = await supabase.from('partners').delete().eq('id', p.id)
+    if (error) return toast(`Could not remove partner: ${error.message}`, 'error')
+    onChange(partners.filter(x => x.id !== p.id))
+    toast(`${p.name} removed`)
   }
 
   return (
@@ -47,7 +51,7 @@ export default function Partners({
             }}
           >
             <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
-            <div style={dangerLink} onClick={() => remove(p.id)}>
+            <div style={dangerLink} onClick={() => remove(p)}>
               Remove
             </div>
           </div>
