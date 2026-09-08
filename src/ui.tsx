@@ -62,6 +62,35 @@ export const badge = (status: string): CSSProperties => ({
 export const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 
+export function Loading({ label = 'Loading…' }: { label?: string }) {
+  return (
+    <div
+      role="status"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        padding: '80px 0',
+        ...muted,
+      }}
+    >
+      <span
+        className="spinner"
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          border: '2px solid oklch(88% 0.008 260)',
+          borderTopColor: 'oklch(45% 0.13 75)',
+          display: 'inline-block',
+        }}
+      />
+      {label}
+    </div>
+  )
+}
+
 export function PageHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <>

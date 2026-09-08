@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import type { Inquiry, Partner, Product } from './lib/supabase'
 import { supabase } from './lib/supabase'
 import Login from './Login'
+import { Loading } from './ui'
 import Dashboard from './tabs/Dashboard'
 import Inquiries from './tabs/Inquiries'
 import Partners from './tabs/Partners'
@@ -20,6 +21,7 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([])
   const [partners, setPartners] = useState<Partner[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -32,20 +34,30 @@ export default function App() {
 
   useEffect(() => {
     if (!session) return
+    setLoading(true)
+    setError(null)
     Promise.all([
       supabase.from('inquiries').select('*').order('created_at', { ascending: false }),
       supabase.from('products').select('*').order('position'),
       supabase.from('partners').select('*').order('created_at'),
     ]).then(([i, pr, pa]) => {
       const failed = [i, pr, pa].find(r => r.error)
-      if (failed) return setError(failed.error!.message)
-      setInquiries(i.data ?? [])
-      setProducts(pr.data ?? [])
-      setPartners(pa.data ?? [])
+      if (failed) setError(failed.error!.message)
+      else {
+        setInquiries(i.data ?? [])
+        setProducts(pr.data ?? [])
+        setPartners(pa.data ?? [])
+      }
+      setLoading(false)
     })
   }, [session])
 
-  if (!authReady) return null
+  if (!authReady)
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+        <Loading label="Starting…" />
+      </div>
+    )
   if (!session) return <Login />
 
   return (
@@ -117,11 +129,19 @@ export default function App() {
             Could not load data: {error}
           </div>
         )}
-        {tab === 'Dashboard' && <Dashboard inquiries={inquiries} productCount={products.length} />}
-        {tab === 'Inquiries' && <Inquiries inquiries={inquiries} onChange={setInquiries} />}
-        {tab === 'Products' && <Products products={products} onChange={setProducts} />}
-        {tab === 'Partners' && <Partners partners={partners} onChange={setPartners} />}
-        {tab === 'Users' && <Users />}
+        {loading ? (
+          <Loading />
+        ) : (
+          <>
+            {tab === 'Dashboard' && (
+              <Dashboard inquiries={inquiries} productCount={products.length} />
+            )}
+            {tab === 'Inquiries' && <Inquiries inquiries={inquiries} onChange={setInquiries} />}
+            {tab === 'Products' && <Products products={products} onChange={setProducts} />}
+            {tab === 'Partners' && <Partners partners={partners} onChange={setPartners} />}
+            {tab === 'Users' && <Users />}
+          </>
+        )}
       </div>
     </div>
   )

@@ -20,6 +20,11 @@
       a { color: oklch(45% 0.13 75); }
       a:hover { color: oklch(38% 0.13 75); }
       select, input, textarea { font-family: inherit; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .spinner { animation: spin 0.7s linear infinite; }
+      @media (prefers-reduced-motion: reduce) {
+        .spinner { animation-duration: 2.4s; }
+      }
     </style>
   </head>
   <body>
